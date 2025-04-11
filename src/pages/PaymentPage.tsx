@@ -21,7 +21,7 @@ import {
   import { useOrder } from '../context/OrderContext';
   import { useState } from 'react';
   import { useHistory } from 'react-router-dom';
-  import { products } from '../data/products';
+  //import { products } from '../data/products';
   
   const PaymentPage: React.FC = () => {
     const { order, setOrder } = useOrder();
@@ -31,19 +31,19 @@ import {
   
     if (!order) return <IonPage><IonContent><p>No hay datos de orden.</p></IonContent></IonPage>;
   
-    const product = products.find(p => p.id === order.productId);
-    const optionSummary = Object.entries(order.selectedOptions || {}).map(([optionId, value]) => {
-      const option = product?.options?.find(o => o.id === optionId);
-      if (!option) return null;
+    //const product = products.find(p => p.id === order.productId);
+    //const optionSummary = Object.entries(order.selectedOptions || {}).map(([optionId, value]) => {
+      //const option = product?.options?.find(o => o.id === optionId);
+      //if (!option) return null;
   
-      const values = Array.isArray(value) ? value : [value];
-      const labels = values.map(v => {
-        const choice = option.choices.find(c => c.id === v);
-        return choice ? choice.name : v;
-      });
+      //const values = Array.isArray(value) ? value : [value];
+      //const labels = values.map(v => {
+        //const choice = option.choices.find(c => c.id === v);
+        //return choice ? choice.name : v;
+      //});
   
-      return `${option.name}: ${labels.join(', ')}`;
-    });
+      //return `${option.name}: ${labels.join(', ')}`;
+    //});
   
     const handleSubmit = () => {
       if (!paymentMethod) {
@@ -71,13 +71,11 @@ import {
         <IonContent>
           <IonCard>
             <IonCardHeader>
-              <IonCardTitle>{product?.name}</IonCardTitle>
-              <IonCardSubtitle>{order.quantity} × ${product?.price}</IonCardSubtitle>
+              <IonCardTitle></IonCardTitle>
+              <IonCardSubtitle></IonCardSubtitle>
             </IonCardHeader>
             <IonCardContent>
-              {optionSummary.map((line, idx) => (
-                <p key={idx}>{line}</p>
-              ))}
+       
             </IonCardContent>
           </IonCard>
   

@@ -23,9 +23,12 @@ import {
 } from '@ionic/react';
 
 import { useParams, useHistory } from 'react-router-dom';
-import { products } from '../data/products';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useCart } from '../context/CartContext';
+
+// Assuming you have a function to fetch products dynamically (or static import)
+import { getProducts } from '../data/products';
+import { Product } from '../data/type_products';
 
 interface RouteParams {
   productId: string;
@@ -35,12 +38,27 @@ const ProductDetailPage: React.FC = () => {
   const { productId } = useParams<RouteParams>();
   const history = useHistory();
   const { addToCart } = useCart();
-  const product = products.find((p) => p.id === productId);
-
+  const [product, setProduct] = useState<Product | undefined>(undefined); // Initialize state to hold product
   const [quantity, setQuantity] = useState(1);
   const [selectedOptions, setSelectedOptions] = useState<{ [key: string]: any }>({});
   const [showAlert, setShowAlert] = useState(false);
   const [missingMessage, setMissingMessage] = useState('');
+
+  console.log("productId ID from URL:", productId);
+
+  // Fetch product details on component mount
+  useEffect(() => {
+    const fetchProduct = async () => {
+      const products = await getProducts(); // Fetch the products dynamically
+  
+      // Filter and get the first matching product
+      const foundProduct = products.find(p => p.id === parseInt(productId, 10));
+      
+      // Set the found product (single product, not an array)
+      setProduct(foundProduct);
+    };
+    fetchProduct();
+  }, [productId]);
 
   if (!product) return <IonPage><IonContent><p>Producto no encontrado.</p></IonContent></IonPage>;
 
@@ -115,8 +133,8 @@ const ProductDetailPage: React.FC = () => {
     const finalPrice = basePrice + optionPrice;
   
     addToCart({
-      id: '',
-      productId: product.id,
+      id: String(product.id), // Use product.id or generate a unique ID for cart items
+      productId: String(product.id),
       name: product.name,
       quantity,
       price: finalPrice,
@@ -124,7 +142,7 @@ const ProductDetailPage: React.FC = () => {
     });
   
     history.push('/cart');
-  };  
+  };
 
   return (
     <IonPage>
