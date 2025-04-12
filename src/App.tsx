@@ -44,7 +44,7 @@ const App: React.FC = () => (
       <IonRouterOutlet>
         <Route exact path="/" component={CategoryPage} />
         <Route exact path="/products/:categoryId" component={ProductListPage} />
-        <Route exact path="/product/:productId" component={ProductDetailPage} />
+        <Route exact path="/products/:productId" component={ProductDetailPage} />
         <Route exact path="/payment" component={PaymentPage} />
         <Route exact path="/confirmation" component={ConfirmationPage} />
         <Route exact path="/cart" component={CartPage} />
