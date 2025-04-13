@@ -30,50 +30,54 @@ const CartPage: React.FC = () => {
 
   const total = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
-  console.log(cart)
+  console.log("Cart Items:", cart);  // Log the cart items to inspect the data structure
 
   const handleCheckout = async () => {
     if (!paymentMethod) {
       setShowAlert(true);
       return;
     }
-  
-    // Wrap the order data inside an object with the "orders" key
+
+    // Prepare the order data
     const orderData = {
       orders: cart.map((item) => {
-        const selections = Object.entries(item.selectedOptions).map(([optionType, optionValues]) => {
+        const selections = Object.entries(item.selectedOptions || {}).map(([optionType, optionValues]) => {
           return (Array.isArray(optionValues) ? optionValues : [optionValues]).map((value: string) => ({
-            productOptionId: optionType,  // This could be the type of the option (e.g., "ingredientes")
-            productOptionChoiceId: value, // This is the value of the option choice (e.g., "aguacate")
+            productOptionId: optionType,  // Option type (e.g., "ingredientes")
+            productOptionChoiceId: value, // Option choice (e.g., "aguacate")
           }));
-        }).flat();  // Flatten the array if selections have nested arrays
-    
+        }).flat();  // Flatten nested selections if any
+
+        // Log item data to inspect
+        console.log(`Processing item ${item.name}`, selections);
+
         return {
           productId: item.productId,
           quantity: item.quantity,
           paymentMethod: paymentMethod,
           orderNumber: Math.floor(Math.random() * 10000),
           tableNumber: 5,
-          userId: 1,
+          userId: 1,  // Ideally should be dynamic based on logged-in user
           total: item.price * item.quantity,
-          clientId: 1,
+          clientId: 1,  // Should be dynamic if needed
           comments: '',
           selections: selections,
         };
       })
     };
-  
-    console.log(JSON.stringify(orderData, null, 2)); // Log the order data to inspect the structure
-    
+
+    // Log the order data to inspect its structure
+    console.log("Order Data:", JSON.stringify(orderData, null, 2));
+
     try {
       const response = await fetch('https://smartloansbackend.azurewebsites.net/orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(orderData),  // Send the correctly formatted data
+        body: JSON.stringify(orderData),  // Send the correctly structured order data
       });
-  
+
       if (response.ok) {
         setShowSuccess(true);
       } else {
@@ -86,7 +90,6 @@ const CartPage: React.FC = () => {
       alert('No se pudo conectar con el servidor.');
     }
   };
-  
 
   return (
     <IonPage>

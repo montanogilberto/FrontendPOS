@@ -25,8 +25,6 @@ import {
 import { useParams, useHistory } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useCart } from '../context/CartContext';
-
-// Assuming you have a function to fetch products dynamically (or static import)
 import { getProducts } from '../data/products';
 import { Product } from '../data/type_products';
 
@@ -38,23 +36,18 @@ const ProductDetailPage: React.FC = () => {
   const { productId } = useParams<RouteParams>();
   const history = useHistory();
   const { addToCart } = useCart();
-  const [product, setProduct] = useState<Product | undefined>(undefined); // Initialize state to hold product
+  const [product, setProduct] = useState<Product | undefined>(undefined);
   const [quantity, setQuantity] = useState(1);
   const [selectedOptions, setSelectedOptions] = useState<{ [key: string]: any }>({});
   const [showAlert, setShowAlert] = useState(false);
   const [missingMessage, setMissingMessage] = useState('');
 
-  console.log("productId ID from URL:", productId);
-
-  // Fetch product details on component mount
   useEffect(() => {
     const fetchProduct = async () => {
-      const products = await getProducts(); // Fetch the products dynamically
-  
-      // Filter and get the first matching product
-      const foundProduct = products.find(p => p.id === parseInt(productId, 10));
-      
-      // Set the found product (single product, not an array)
+      const products = await getProducts();
+      console.log("All products fetched:", products);
+      const foundProduct = products.find(p => p.categoryId === parseInt(productId, 10));
+      console.log("Matched product:", foundProduct);
       setProduct(foundProduct);
     };
     fetchProduct();
@@ -63,10 +56,12 @@ const ProductDetailPage: React.FC = () => {
   if (!product) return <IonPage><IonContent><p>Producto no encontrado.</p></IonContent></IonPage>;
 
   const handleRadioChange = (optionId: string, value: string) => {
+    console.log(`Selected radio for ${optionId}:`, value);
     setSelectedOptions((prev) => ({ ...prev, [optionId]: value }));
   };
 
   const handleCheckboxChange = (optionId: string, value: string) => {
+    console.log(`Toggled checkbox for ${optionId} value:`, value);
     const currentValues = selectedOptions[optionId] || [];
     const updatedValues = currentValues.includes(value)
       ? currentValues.filter((v: string) => v !== value)
@@ -76,6 +71,7 @@ const ProductDetailPage: React.FC = () => {
   };
 
   const handleSelectAll = (optionId: string, allIds: string[]) => {
+    console.log(`Select All clicked for ${optionId}`);
     const current = selectedOptions[optionId] || [];
     const isAllSelected = current.length === allIds.length;
     setSelectedOptions((prev) => ({
@@ -90,57 +86,67 @@ const ProductDetailPage: React.FC = () => {
       const value = selectedOptions[option.id];
       if (option.type === 'radio' && value) {
         const selected = option.choices.find(c => c.id === value);
+        console.log(`Radio selected: ${selected?.name}, price: ${selected?.price}`);
         extra += selected?.price || 0;
       }
       if (option.type === 'checkbox' && Array.isArray(value)) {
         value.forEach((id: string) => {
           const selected = option.choices.find(c => c.id === id);
+          console.log(`Checkbox selected: ${selected?.name}, price: ${selected?.price}`);
           extra += selected?.price || 0;
         });
       }
     });
+    console.log("Total extra option price:", extra);
     return extra;
   };
 
   const handleAddToCart = () => {
+    console.log("Trying to add to cart with options:", selectedOptions);
+
     const requiredOptions = product.options || [];
     const missingGroups: string[] = [];
-  
+
     requiredOptions.forEach((option) => {
       const value = selectedOptions[option.id];
-  
       if (option.type === 'radio' && !value) {
         missingGroups.push(option.name);
       }
-  
       if (option.type === 'checkbox' && (!Array.isArray(value) || value.length === 0)) {
         missingGroups.push(option.name);
       }
     });
-  
+
     if (missingGroups.length > 0) {
+      console.warn("Missing required options:", missingGroups);
       setMissingMessage(
         `Falta seleccionar ${missingGroups.length === 1 ? 'la opción' : 'las opciones'}: ` +
         `${missingGroups.map(name => `"${name}"`).join(', ')}.`
       );
-
       setShowAlert(true);
       return;
     }
-  
+
     const basePrice = product.price;
     const optionPrice = calculateOptionPrice();
     const finalPrice = basePrice + optionPrice;
-  
+
+    console.log("Final price to add:", finalPrice);
+    console.log("Product added to cart:", {
+      name: product.name,
+      quantity,
+      selectedOptions,
+    });
+
     addToCart({
-      id: String(product.id), // Use product.id or generate a unique ID for cart items
+      id: String(product.id),
       productId: String(product.id),
       name: product.name,
       quantity,
       price: finalPrice,
       selectedOptions,
     });
-  
+
     history.push('/cart');
   };
 
@@ -157,12 +163,7 @@ const ProductDetailPage: React.FC = () => {
 
       <IonContent>
         <IonCard>
-          <img src={product.image} alt={product.name} />
-          <IonCardHeader>
-            <IonCardTitle>${product.price}</IonCardTitle>
-          </IonCardHeader>
           <IonCardContent>
-            <p>{product.description}</p>
 
             {product.options?.map((option) => (
               <IonList key={option.id}>

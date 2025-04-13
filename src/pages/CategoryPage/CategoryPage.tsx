@@ -18,7 +18,6 @@ const CategoryPage: React.FC = () => {
     loadCategories();
   }, []); // Empty dependency array ensures it runs only once on mount
 
-  //categories.map((category, index) => (console.log(category)))
 
   return (
     <IonPage>
@@ -33,7 +32,7 @@ const CategoryPage: React.FC = () => {
             {categories.map((category, index) => (
               
               <IonCol size="6" key={category.productCategoryId || index}> {/* Use categoriesId or index as a fallback */}
-                <IonCard onClick={() => history.push(`/products/${category.productCategoryId}`)}>
+                <IonCard onClick={() => history.push(`/product/${category.productCategoryId}`)}>
                   <img src={category.image} alt={category.name} className="category-image" />
                   <IonCardContent className="ion-text-center">
                     <h2>{category.name}</h2>
