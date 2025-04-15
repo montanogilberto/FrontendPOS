@@ -26,7 +26,7 @@ import { useParams, useHistory } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useCart } from '../context/CartContext';
 import { getProducts } from '../data/products';
-import { Product } from '../data/type_products';
+import { Product, CartItem } from '../data/type_products';
 
 interface RouteParams {
   productId: string;
@@ -41,6 +41,7 @@ const ProductDetailPage: React.FC = () => {
   const [selectedOptions, setSelectedOptions] = useState<{ [key: string]: any }>({});
   const [showAlert, setShowAlert] = useState(false);
   const [missingMessage, setMissingMessage] = useState('');
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -107,14 +108,26 @@ const ProductDetailPage: React.FC = () => {
     const requiredOptions = product.options || [];
     const missingGroups: string[] = [];
 
-    requiredOptions.forEach((option) => {
+    const selectedOptionLabels: { [key: string]: string[] | string } = {};
+
+    product.options?.forEach(option => {
       const value = selectedOptions[option.id];
-      if (option.type === 'radio' && !value) {
-        missingGroups.push(option.name);
+
+      if (option.type === 'radio' && value) {
+        const choice = option.choices.find(c => c.id === value);
+        if (choice) {
+          selectedOptionLabels[option.name] = choice.name;
+        }
       }
-      if (option.type === 'checkbox' && (!Array.isArray(value) || value.length === 0)) {
-        missingGroups.push(option.name);
+
+      if (option.type === 'checkbox' && Array.isArray(value)) {
+        const selectedLabels = value.map((id: string) => {
+          const choice = option.choices.find(c => c.id === id);
+          return choice?.name || id;
+        });
+        selectedOptionLabels[option.name] = selectedLabels;
       }
+
     });
 
     if (missingGroups.length > 0) {
@@ -145,6 +158,7 @@ const ProductDetailPage: React.FC = () => {
       quantity,
       price: finalPrice,
       selectedOptions,
+      selectedOptionLabels,
     });
 
     history.push('/cart');
@@ -163,6 +177,7 @@ const ProductDetailPage: React.FC = () => {
 
       <IonContent>
         <IonCard>
+
           <IonCardContent>
 
             {product.options?.map((option) => (

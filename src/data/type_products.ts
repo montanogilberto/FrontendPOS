@@ -18,8 +18,17 @@ export interface Choice {
     name: string;
     description: string;
     price: number;
-    image: string;
     categoryId: number;
-    options: Option[];
+    options?: Option[]; // Reuse the Option interface you already have
   }
   
+  // types.ts or inside CartContext if it's defined there
+  export interface CartItem {
+    id: string;
+    productId: string;
+    name: string;
+    quantity: number;
+    price: number;
+    selectedOptions: { [key: string]: string | string[] };
+    selectedOptionLabels?: { [key: string]: string | string[] }; // 👈 add this line
+  }

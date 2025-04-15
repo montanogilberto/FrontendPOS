@@ -7,6 +7,7 @@ export interface CartItem {
   quantity: number;
   price: number;
   selectedOptions: { [optionId: string]: any };
+  selectedOptionLabels?: { [optionId: string]: any };
 }
 
 interface CartContextType {

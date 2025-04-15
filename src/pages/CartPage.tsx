@@ -115,9 +115,9 @@ const CartPage: React.FC = () => {
                     <p>Cantidad: {item.quantity}</p>
                     <p>Precio unitario: ${item.price}</p>
 
-                    {item.selectedOptions && (
+                    {item.selectedOptionLabels && (
                       <ul style={{ marginTop: 10 }}>
-                        {Object.entries(item.selectedOptions).map(([key, value]) => (
+                        {Object.entries(item.selectedOptionLabels).map(([key, value]) => (
                           <li key={key}>
                             <strong>{key}:</strong>{' '}
                             {Array.isArray(value) ? value.join(', ') : value}

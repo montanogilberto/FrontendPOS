@@ -12,6 +12,7 @@ import ProductDetailPage from './pages/ProductDetailPage';
 import PaymentPage from './pages/PaymentPage';
 import ConfirmationPage from './pages/ConfirmationPage';
 import CartPage from './pages/CartPage';
+import TabsPage from './pages/TabsPage';
 
 
 /* Core CSS required for Ionic components to work properly */
@@ -42,7 +43,8 @@ const App: React.FC = () => (
   <IonApp>
     <IonReactRouter>
       <IonRouterOutlet>
-        <Route exact path="/" component={CategoryPage} />
+        <Route exact path="/" render={() => <Redirect to="/tabs/home" />} />
+        <Route path="/tabs" component={TabsPage} />
         <Route exact path="/product/:categoryId" component={ProductListPage} />
         <Route exact path="/products/:productId" component={ProductDetailPage} />
         <Route exact path="/payment" component={PaymentPage} />
