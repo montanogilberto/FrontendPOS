@@ -47,7 +47,7 @@ const ProductDetailPage: React.FC = () => {
     const fetchProduct = async () => {
       const products = await getProducts();
       console.log("All products fetched:", products);
-      const foundProduct = products.find(p => p.categoryId === parseInt(productId, 10));
+      const foundProduct = products.find(p => p.id === parseInt(productId, 10));
       console.log("Matched product:", foundProduct);
       setProduct(foundProduct);
     };

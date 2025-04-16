@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   IonPage,
   IonHeader,
@@ -10,10 +10,133 @@ import {
   IonLabel,
   IonList,
   IonItem,
+  IonText,
+  IonSpinner,
+  IonToggle,
 } from '@ionic/react';
+import { Order } from '../data/orderTypes';
 
 const OrdersPage: React.FC = () => {
-  const [selectedTab, setSelectedTab] = useState('enPreparacion');
+  const [selectedTab, setSelectedTab] = useState<'enPreparacion' | 'listo' | 'todos'>('enPreparacion');
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchOrders = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('https://smartloansbackend.azurewebsites.net/list_orders');
+      const data = await response.json();
+      setOrders(data.orders || []);
+    } catch (err) {
+      setError('Failed to fetch orders');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const filterOrdersByColor = (color: string) => {
+    return orders.filter(order =>
+      order.orderStatuses.some(os => os.orderStatusColor.toLowerCase() === color.toLowerCase())
+    );
+  };
+
+  const updateOrderStatus = async (orderId: number, newStatus: string) => {
+    try {
+      // Placeholder API call to update order status
+      const response = await fetch('https://smartloansbackend.azurewebsites.net/update_order_status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, status: newStatus }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to update order status');
+      }
+      // Refresh orders after update
+      fetchOrders();
+    } catch (error) {
+      console.error(error);
+      setError('Failed to update order status');
+    }
+  };
+
+
+  const renderOrderItem = (order: Order) => {
+    const latestStatus = order.orderStatuses[0];
+    const statusName = latestStatus?.orderStatusName || 'Unknown';
+    const statusColor = latestStatus?.orderStatusColor || 'black';
+    const statusChangedAt = latestStatus?.orderTracking[0]?.statusChangedAt || '';
+
+    const isInPreparation = statusColor.toLowerCase() === 'red';
+
+    return (
+      <IonItem key={order.orderId}>
+        <IonLabel>
+          <h2>Order #{order.orderNumber} - Table {order.tableNumber}</h2>
+          <p>Total: ${order.total.toFixed(2)}</p>
+          <p>Payment: {order.paymentMethod}</p>
+          <p>Status: <IonText style={{ color: statusColor }}>{statusName}</IonText></p>
+          <p>Last Updated: {new Date(statusChangedAt).toLocaleString()}</p>
+          {order.comments && <p>Comments: {order.comments}</p>}
+        </IonLabel>
+        {selectedTab === 'enPreparacion' && (
+          <IonToggle
+            checked={false}
+            onIonChange={() => updateOrderStatus(order.orderId, 'done')}
+            slot="end"
+            aria-label="Mark as done"
+          />
+        )}
+      </IonItem>
+    );
+  };
+
+  let content;
+
+  if (loading) {
+    content = <IonSpinner name="crescent" />;
+  } else if (error) {
+    content = <IonText color="danger">{error}</IonText>;
+  } else {
+    if (selectedTab === 'enPreparacion') {
+      const filtered = filterOrdersByColor('red');
+      content = filtered.length > 0 ? (
+        <IonList>{filtered.map(renderOrderItem)}</IonList>
+      ) : (
+        <IonList>
+          <IonItem>
+            <IonLabel>No orders en preparacion.</IonLabel>
+          </IonItem>
+        </IonList>
+      );
+    } else if (selectedTab === 'listo') {
+      const filtered = filterOrdersByColor('green');
+      content = filtered.length > 0 ? (
+        <IonList>{filtered.map(renderOrderItem)}</IonList>
+      ) : (
+        <IonList>
+          <IonItem>
+            <IonLabel>No orders listos.</IonLabel>
+          </IonItem>
+        </IonList>
+      );
+    } else {
+      content = orders.length > 0 ? (
+        <IonList>{orders.map(renderOrderItem)}</IonList>
+      ) : (
+        <IonList>
+          <IonItem>
+            <IonLabel>No orders.</IonLabel>
+          </IonItem>
+        </IonList>
+      );
+    }
+  }
 
   return (
     <IonPage>
@@ -22,10 +145,7 @@ const OrdersPage: React.FC = () => {
           <IonTitle>Orders</IonTitle>
         </IonToolbar>
         <IonToolbar>
-<IonSegment
-  value={selectedTab}
-  onIonChange={e => setSelectedTab(e.detail.value as string)}
->
+          <IonSegment value={selectedTab} onIonChange={e => setSelectedTab(e.detail.value as any)}>
             <IonSegmentButton value="enPreparacion">
               <IonLabel>En Preparacion</IonLabel>
             </IonSegmentButton>
@@ -38,29 +158,7 @@ const OrdersPage: React.FC = () => {
           </IonSegment>
         </IonToolbar>
       </IonHeader>
-      <IonContent fullscreen>
-        {selectedTab === 'enPreparacion' && (
-          <IonList>
-            <IonItem>
-              <IonLabel>No orders en preparacion.</IonLabel>
-            </IonItem>
-          </IonList>
-        )}
-        {selectedTab === 'listo' && (
-          <IonList>
-            <IonItem>
-              <IonLabel>No orders listos.</IonLabel>
-            </IonItem>
-          </IonList>
-        )}
-        {selectedTab === 'todos' && (
-          <IonList>
-            <IonItem>
-              <IonLabel>No orders.</IonLabel>
-            </IonItem>
-          </IonList>
-        )}
-      </IonContent>
+      <IonContent fullscreen>{content}</IonContent>
     </IonPage>
   );
 };
