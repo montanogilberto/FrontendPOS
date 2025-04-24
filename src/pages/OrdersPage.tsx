@@ -55,7 +55,7 @@ const OrdersPage: React.FC = () => {
     const statusTrakingId = statusTrackingMap[newStatus] || 1;
     try {
       
-      const response = await fetch('https://smartloansbackend.azurewebsites.net/update_order_status', {
+      const response = await fetch('https://smartloansbackend.azurewebsites.net/tracking_status_orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
