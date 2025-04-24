@@ -40,27 +40,41 @@ const OrdersPage: React.FC = () => {
     fetchOrders();
   }, []);
 
-  const filterOrdersByColor = (color: string) => {
-    return orders.filter(order =>
-      order.orderStatuses.some(os => os.orderStatusColor.toLowerCase() === color.toLowerCase())
-    );
+  const filterOrdersByStatus = (statusNames: string[]) => {
+    return orders.filter(order => {
+      const latestStatus = order.orderStatuses[0];
+      return latestStatus && statusNames.includes(latestStatus.orderStatusName.toLowerCase());
+    });
   };
 
   const updateOrderStatus = async (orderId: number, newStatus: string) => {
+    const statusTrackingMap: { [key: string]: number } = {
+      pending: 1,
+      done: 2,
+    };
+    const statusTrakingId = statusTrackingMap[newStatus] || 1;
     try {
-      // Placeholder API call to update order status
+      
       const response = await fetch('https://smartloansbackend.azurewebsites.net/update_order_status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, status: newStatus }),
+        body: JSON.stringify({
+          ordersTraking: [
+            {
+              orderId,
+              userId: 1,
+              statusTrakingId,
+            },
+          ],
+        }),
       });
       if (!response.ok) {
         throw new Error('Failed to update order status');
       }
-      // Refresh orders after update
+
       fetchOrders();
+
     } catch (error) {
-      console.error(error);
       setError('Failed to update order status');
     }
   };
@@ -104,7 +118,7 @@ const OrdersPage: React.FC = () => {
     content = <IonText color="danger">{error}</IonText>;
   } else {
     if (selectedTab === 'enPreparacion') {
-      const filtered = filterOrdersByColor('red');
+      const filtered = filterOrdersByStatus(['pending', 'preparing']);
       content = filtered.length > 0 ? (
         <IonList>{filtered.map(renderOrderItem)}</IonList>
       ) : (
@@ -115,7 +129,7 @@ const OrdersPage: React.FC = () => {
         </IonList>
       );
     } else if (selectedTab === 'listo') {
-      const filtered = filterOrdersByColor('green');
+      const filtered = filterOrdersByStatus(['done']);
       content = filtered.length > 0 ? (
         <IonList>{filtered.map(renderOrderItem)}</IonList>
       ) : (
@@ -147,10 +161,10 @@ const OrdersPage: React.FC = () => {
         <IonToolbar>
           <IonSegment value={selectedTab} onIonChange={e => setSelectedTab(e.detail.value as any)}>
             <IonSegmentButton value="enPreparacion">
-              <IonLabel>En Preparacion</IonLabel>
+              <IonLabel>Preparacion</IonLabel>
             </IonSegmentButton>
             <IonSegmentButton value="listo">
-              <IonLabel>Listo</IonLabel>
+              <IonLabel>Listos</IonLabel>
             </IonSegmentButton>
             <IonSegmentButton value="todos">
               <IonLabel>Todos</IonLabel>

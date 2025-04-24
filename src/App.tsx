@@ -7,8 +7,8 @@ import {
 import { IonReactRouter } from '@ionic/react-router';
 
 import CategoryPage from './pages/CategoryPage/CategoryPage';
-import ProductListPage from './pages/ProductListPage';
-import ProductDetailPage from './pages/ProductDetailPage';
+import ProductListPage from './pages/ProductPage/ProductListPage';
+import ProductDetailPage from './pages/ProductPage/ProductDetailPage';
 import PaymentPage from './pages/PaymentPage';
 import ConfirmationPage from './pages/ConfirmationPage';
 import CartPage from './pages/CartPage';

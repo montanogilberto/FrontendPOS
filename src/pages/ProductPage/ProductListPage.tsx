@@ -17,8 +17,8 @@ import {
   IonCol,
 } from '@ionic/react';
 import { useParams, useHistory } from 'react-router-dom';
-import { getProducts } from '../data/products';
-import { Product } from '../data/type_products';
+import { getProducts } from '../../data/products';
+import { Product } from '../../data/type_products';
 import { useEffect, useState } from 'react';
 
 interface RouteParams {

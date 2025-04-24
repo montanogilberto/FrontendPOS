@@ -13,13 +13,13 @@ import {
   IonBackButton,
   IonSelect,
   IonSelectOption,
-  IonCard,
-  IonCardContent,
   IonAlert,
 } from '@ionic/react';
 import { useCart } from '../context/CartContext';
 import { useState } from 'react';
 import { useHistory } from 'react-router-dom';
+import CartItem from '../components/CartItem';
+import { submitOrder } from '../api/cartApi';
 
 const CartPage: React.FC = () => {
   const { cart, removeFromCart, clearCart } = useCart();
@@ -30,26 +30,20 @@ const CartPage: React.FC = () => {
 
   const total = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
-  console.log("Cart Items:", cart);  // Log the cart items to inspect the data structure
-
   const handleCheckout = async () => {
     if (!paymentMethod) {
       setShowAlert(true);
       return;
     }
 
-    // Prepare the order data
     const orderData = {
       orders: cart.map((item) => {
         const selections = Object.entries(item.selectedOptions || {}).map(([optionType, optionValues]) => {
           return (Array.isArray(optionValues) ? optionValues : [optionValues]).map((value: string) => ({
-            productOptionId: optionType,  // Option type (e.g., "ingredientes")
-            productOptionChoiceId: value, // Option choice (e.g., "aguacate")
+            productOptionId: optionType,
+            productOptionChoiceId: value,
           }));
-        }).flat();  // Flatten nested selections if any
-
-        // Log item data to inspect
-        console.log(`Processing item ${item.name}`, selections);
+        }).flat();
 
         return {
           productId: item.productId,
@@ -57,32 +51,22 @@ const CartPage: React.FC = () => {
           paymentMethod: paymentMethod,
           orderNumber: Math.floor(Math.random() * 10000),
           tableNumber: 5,
-          userId: 1,  // Ideally should be dynamic based on logged-in user
+          userId: 1,
           total: item.price * item.quantity,
-          clientId: 1,  // Should be dynamic if needed
+          clientId: 1,
           comments: '',
           selections: selections,
         };
-      })
+      }),
     };
 
-    // Log the order data to inspect its structure
-    console.log("Order Data:", JSON.stringify(orderData, null, 2));
-
     try {
-      const response = await fetch('https://smartloansbackend.azurewebsites.net/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(orderData),  // Send the correctly structured order data
-      });
-
+      const response = await submitOrder(orderData);
       if (response.ok) {
         setShowSuccess(true);
       } else {
         const errorData = await response.json();
-        console.error('Order error:', errorData.detail);  // Log detailed error response
+        console.error('Order error:', errorData.detail);
         alert('Ocurrió un error al procesar el pedido.');
       }
     } catch (error) {
@@ -109,32 +93,15 @@ const CartPage: React.FC = () => {
           <>
             <IonList>
               {cart.map((item) => (
-                <IonCard key={item.id}>
-                  <IonCardContent>
-                    <h2>{item.name}</h2>
-                    <p>Cantidad: {item.quantity}</p>
-                    <p>Precio unitario: ${item.price}</p>
-
-                    {item.selectedOptionLabels && (
-                      <ul style={{ marginTop: 10 }}>
-                        {Object.entries(item.selectedOptionLabels).map(([key, value]) => (
-                          <li key={key}>
-                            <strong>{key}:</strong>{' '}
-                            {Array.isArray(value) ? value.join(', ') : value}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-
-                    <IonButton
-                      color="danger"
-                      size="small"
-                      onClick={() => removeFromCart(item.id)}
-                    >
-                      Eliminar
-                    </IonButton>
-                  </IonCardContent>
-                </IonCard>
+                <CartItem
+                  key={item.id}
+                  id={item.id}
+                  name={item.name}
+                  quantity={item.quantity}
+                  price={item.price}
+                  selectedOptionLabels={item.selectedOptionLabels}
+                  onRemove={removeFromCart}
+                />
               ))}
             </IonList>
 
@@ -167,7 +134,6 @@ const CartPage: React.FC = () => {
         )}
       </IonContent>
 
-      {/* ✅ Success alert */}
       <IonAlert
         isOpen={showSuccess}
         onDidDismiss={() => {
@@ -180,7 +146,6 @@ const CartPage: React.FC = () => {
         buttons={['OK']}
       />
 
-      {/* ⚠️ Payment method required alert */}
       <IonAlert
         isOpen={showAlert}
         onDidDismiss={() => setShowAlert(false)}

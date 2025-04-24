@@ -24,9 +24,9 @@ import {
 
 import { useParams, useHistory } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { useCart } from '../context/CartContext';
-import { getProducts } from '../data/products';
-import { Product, CartItem } from '../data/type_products';
+import { useCart } from '../../context/CartContext';
+import { getProducts } from '../../data/products';
+import { Product, CartItem } from '../../data/type_products';
 
 interface RouteParams {
   productId: string;
