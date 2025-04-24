@@ -14,12 +14,14 @@ import {
   IonSelect,
   IonSelectOption,
   IonAlert,
+  IonIcon,
 } from '@ionic/react';
 import { useCart } from '../context/CartContext';
 import { useState } from 'react';
 import { useHistory } from 'react-router-dom';
 import CartItem from '../components/CartItem';
 import { submitOrder } from '../api/cartApi';
+import { addCircleOutline } from 'ionicons/icons';
 
 const CartPage: React.FC = () => {
   const { cart, removeFromCart, clearCart } = useCart();
@@ -75,6 +77,10 @@ const CartPage: React.FC = () => {
     }
   };
 
+  const handleAddMoreProducts = () => {
+    history.push('/categoryPage');
+  };
+
   return (
     <IonPage>
       <IonHeader>
@@ -83,6 +89,11 @@ const CartPage: React.FC = () => {
             <IonBackButton defaultHref="/" />
           </IonButtons>
           <IonTitle>Carrito</IonTitle>
+          <IonButtons slot="end">
+            <IonButton onClick={handleAddMoreProducts} aria-label="Add more products">
+              <IonIcon icon={addCircleOutline} />
+            </IonButton>
+          </IonButtons>
         </IonToolbar>
       </IonHeader>
 

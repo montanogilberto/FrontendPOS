@@ -120,11 +120,10 @@ const OrdersPage: React.FC = () => {
       <React.Fragment key={order.orderId}>
         <IonItem>
           <IonLabel>
-            <h2>Order #{order.orderNumber} - Table {order.tableNumber}</h2>
+            <h2>Orden #{order.orderId} - Table {order.tableNumber}</h2>
             <p>Total: ${order.total.toFixed(2)}</p>
-            <p>Payment: {order.paymentMethod}</p>
-            <p>Status: <IonText style={{ color: statusColor }}>{statusName}</IonText></p>
-            <p>Last Updated: {new Date(statusChangedAt).toLocaleString()}</p>
+            <p>Status: <IonText style={{ color: statusColor, fontWeight: 'bold', borderRadius: '8px' }}>{statusName}</IonText></p>
+            <p>Ultima Actualizacion: {new Date(statusChangedAt).toLocaleTimeString()}</p>
             {order.comments && <p>Comments: {order.comments}</p>}
           </IonLabel>
           {selectedTab === 'enPreparacion' && (
