@@ -33,9 +33,9 @@ const CartPage: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<'efectivo' | 'tarjeta' | ''>('');
   const [cashPaid, setCashPaid] = useState<string>('');
   const [showAlert, setShowAlert] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [showSuccess, setShowSuccess] = useState(false);
   const [changeAmount, setChangeAmount] = useState(0);
 
   const total = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
@@ -55,6 +55,7 @@ const CartPage: React.FC = () => {
     setToastMessage(message);
     setShowToast(true);
   };
+
 
   const handleCheckout = async () => {
     if (!paymentMethod) {
@@ -93,20 +94,21 @@ const CartPage: React.FC = () => {
       }),
     };
 
-    try {
-      const response = await submitOrder(orderData);
-      if (response.ok) {
-        setShowSuccess(true);
-      } else {
-        const errorData = await response.json();
-        console.error('Order error:', errorData.detail);
-        showErrorToast('Ocurrió un error al procesar el pedido.');
+      try {
+        const response = await submitOrder(orderData);
+        if (response.ok) {
+          setShowSuccess(true);
+        } else {
+          const errorData = await response.json();
+          console.error('Order error:', errorData.detail);
+          showErrorToast('Ocurrió un error al procesar el pedido.');
+        }
+      } catch (error) {
+        console.error('Checkout error:', error);
+        showErrorToast('No se pudo conectar con el servidor.');
       }
-    } catch (error) {
-      console.error('Checkout error:', error);
-      showErrorToast('No se pudo conectar con el servidor.');
-    }
-  };
+    };
+
 
   const handleAddMoreProducts = () => {
     history.push('/tabs/home');
@@ -192,21 +194,30 @@ const CartPage: React.FC = () => {
         )}
 
 
-        <IonToast
-          isOpen={showToast}
-          onDidDismiss={() => setShowToast(false)}
-          message={toastMessage}
-          color="danger"
-          position="bottom"
-          buttons={[
-            {
-              text: 'Cerrar',
-              role: 'cancel',
-              handler: () => setShowToast(false),
-            },
-          ]}
-        />
+
       </IonContent>
+
+      <IonToast
+        isOpen={showToast}
+        onDidDismiss={() => setShowToast(false)}
+        message={toastMessage}
+        color="danger"
+        position="bottom"
+        buttons={[
+          {
+            text: 'Cerrar',
+            role: 'cancel',
+            handler: () => setShowToast(false),
+          },
+        ]}
+      />
+      <IonAlert
+        isOpen={showAlert}
+        onDidDismiss={() => setShowAlert(false)}
+        header="Validación"
+        message="Debe seleccionar un método de pago."
+        buttons={['OK']}
+      />
 
       <IonAlert
         isOpen={showSuccess}

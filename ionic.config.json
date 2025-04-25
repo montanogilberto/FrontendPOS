@@ -1,5 +1,7 @@
 {
   "name": "food_pos",
-  "integrations": {},
+  "integrations": {
+    "capacitor": {}
+  },
   "type": "react-vite"
 }
