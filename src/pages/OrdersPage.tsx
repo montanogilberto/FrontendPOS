@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useIonViewWillEnter } from '@ionic/react';
 import {
   IonPage,
   IonHeader,
@@ -14,8 +13,11 @@ import {
   IonText,
   IonSpinner,
   IonToggle,
-  IonButton,
   IonListHeader,
+  IonCard,
+  IonCardHeader,
+  IonCardTitle,
+  IonCardContent,
 } from '@ionic/react';
 import { Order } from '../data/orderTypes';
 
@@ -35,11 +37,6 @@ const OrdersPage: React.FC = () => {
     try {
       const response = await fetch('https://smartloansbackend.azurewebsites.net/list_orders');
       const data = await response.json();
-      if (data.orders) {
-        data.orders.forEach((order: any) => {
-          console.log('OrderId:', order.orderId, 'Status:', order.orderStatuses.map((s: any) => s.orderStatusName));
-        });
-      }
       setOrders(data.orders || []);
     } catch (err) {
       setError('Failed to fetch orders');
@@ -51,10 +48,6 @@ const OrdersPage: React.FC = () => {
   useEffect(() => {
     fetchOrders();
   }, []);
-
-  useIonViewWillEnter(() => {
-    fetchOrders();
-  });
 
   const filterOrdersByStatus = (statusNames: string[]) => {
     return orders.filter(order => {
@@ -115,15 +108,12 @@ const OrdersPage: React.FC = () => {
   };
 
   const toggleOrderDetails = (orderId: number) => {
-    setExpandedOrderIds(prev => {
-      const isExpanded = prev.includes(orderId);
-      if (!isExpanded) {
-        fetchOrderProductDetails(orderId);
-        return [...prev, orderId];
-      } else {
-        return prev.filter(id => id !== orderId);
-      }
-    });
+    setExpandedOrderIds(prev =>
+      prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId]
+    );
+    if (!expandedOrderIds.includes(orderId)) {
+      fetchOrderProductDetails(orderId);
+    }
   };
 
   const fetchOrderProductDetails = async (orderId: number) => {
@@ -135,6 +125,10 @@ const OrdersPage: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orders: [{ orderId }] }),
       });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API error: ${errorText}`);
+      }
       const data = await response.json();
       setOrderProductDetails(prev => ({ ...prev, [orderId]: data.orderedProducts[0] || null }));
     } catch (error) {
@@ -165,26 +159,12 @@ const OrdersPage: React.FC = () => {
             <p>Status: <IonText style={{ color: statusColor, fontWeight: 'bold', borderRadius: '8px' }}>{statusName}</IonText></p>
             <p>Ultima Actualizacion: {new Date(statusChangedAt).toLocaleTimeString()}</p>
             {order.comments && <p>Comments: {order.comments}</p>}
-            {productDetails && (
-              <p>
-                {productDetails.products?.map((product: any, index: number) => (
-                  <span key={index}>
-                    {product.productName}
-                    {product.po?.map((option: any) => (
-                      <span key={option.productOptionId}>
-                        {option.optionName}:
-                        {option.poc?.map((choice: any) => (
-                          <span key={choice.productOptionChoiceId}>
-                            {choice.choiceName} {choice.choicePrice > 0 ? `($${choice.choicePrice.toFixed(2)})` : ''}
-                          </span>
-                        ))}
-                      </span>
-                    ))}
-                    {index < productDetails.products.length - 1 ? ', ' : ''}
-                  </span>
-                ))}
-              </p>
-            )}
+            <p
+              style={{ cursor: 'pointer', color: 'blue', marginLeft: '10px', textDecoration: 'underline' }}
+              onClick={() => toggleOrderDetails(order.orderId)}
+            >
+              {isExpanded ? 'Hide Product Details' : 'Show Product Details'}
+            </p>
           </IonLabel>
           {selectedTab === 'enPreparacion' && (
             <IonToggle
@@ -194,43 +174,38 @@ const OrdersPage: React.FC = () => {
               aria-label="Update order status"
             />
           )}
-
         </IonItem>
-          {isExpanded && (
-            <IonList>
-              <IonListHeader>Products</IonListHeader>
-              {loadingDetails && <IonItem><IonLabel>Loading product details...</IonLabel></IonItem>}
-              {errorDetails && <IonItem><IonLabel color="danger">{errorDetails}</IonLabel></IonItem>}
-              {productDetails && (
-                <>
-                  <IonItem>
-                    <IonLabel>
-                      <strong>Product Details for Order #{order.orderId}</strong>
-                    </IonLabel>
-                  </IonItem>
-                  {productDetails.products?.map((product: any, index: number) => (
-                    <IonItem key={index}>
-                      <IonLabel>
-                        <h3>{product.productName}</h3>
-                        {product.po?.map((option: any) => (
-                          <div key={option.productOptionId} style={{ marginLeft: '10px' }}>
-                            <strong>{option.optionName}:</strong>
-                            <ul>
-                              {option.poc?.map((choice: any) => (
-                                <li key={choice.productOptionChoiceId}>
-                                  {choice.choiceName} {choice.choicePrice > 0 ? `($${choice.choicePrice.toFixed(2)})` : ''}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        ))}
-                      </IonLabel>
-                    </IonItem>
-                  ))}
-                </>
-              )}
-            </IonList>
-          )}
+        {isExpanded && (
+          <IonList>
+            {loadingDetails && <IonItem><IonLabel>Loading product details...</IonLabel></IonItem>}
+            {errorDetails && <IonItem><IonLabel color="danger">{errorDetails}</IonLabel></IonItem>}
+            {productDetails && (
+              <>
+                {productDetails.products?.map((product: any, index: number) => (
+                  <IonCard key={index}>
+                    <IonCardHeader>
+                      <IonCardTitle>{product.productName}</IonCardTitle>
+                    </IonCardHeader>
+                    <IonCardContent>
+                      {product.po?.map((option: any) => (
+                        <div key={option.productOptionId} style={{ marginLeft: '10px' }}>
+                          <strong>{option.optionName}:</strong>
+                          <ul>
+                            {option.poc?.map((choice: any) => (
+                              <li key={choice.productOptionChoiceId}>
+                                {choice.choiceName} {choice.choicePrice > 0 ? `($${choice.choicePrice.toFixed(2)})` : ''}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </IonCardContent>
+                  </IonCard>
+                ))}
+              </>
+            )}
+          </IonList>
+        )}
       </React.Fragment>
     );
   };
@@ -244,10 +219,10 @@ const OrdersPage: React.FC = () => {
   } else {
     if (selectedTab === 'enPreparacion') {
       const preparingOrders = filterOrdersByStatus(['preparing']).sort(
-        (a, b) => getStatusChangedAt(a, 'preparing') - getStatusChangedAt(b, 'preparing')
+        (a, b) => getStatusChangedAt(b, 'preparing') - getStatusChangedAt(a, 'preparing')
       );
       const pendingOrders = filterOrdersByStatus(['pending']).sort(
-        (a, b) => getStatusChangedAt(a, 'pending') - getStatusChangedAt(b, 'pending')
+        (a, b) => getStatusChangedAt(b, 'pending') - getStatusChangedAt(a, 'pending')
       );
 
       content = (
