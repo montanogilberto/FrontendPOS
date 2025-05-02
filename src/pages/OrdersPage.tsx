@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   IonPage,
   IonHeader,
@@ -18,8 +18,11 @@ import {
   IonCardHeader,
   IonCardTitle,
   IonCardContent,
+  IonButton,
 } from '@ionic/react';
 import { Order } from '../data/orderTypes';
+
+import * as SpeechSDK from 'microsoft-cognitiveservices-speech-sdk';
 
 const OrdersPage: React.FC = () => {
   const [selectedTab, setSelectedTab] = useState<'enPreparacion' | 'listo' | 'todos'>('enPreparacion');
@@ -30,6 +33,22 @@ const OrdersPage: React.FC = () => {
   const [orderProductDetails, setOrderProductDetails] = useState<{ [orderId: number]: any }>({});
   const [loadingProductDetails, setLoadingProductDetails] = useState<{ [orderId: number]: boolean }>({});
   const [errorProductDetails, setErrorProductDetails] = useState<{ [orderId: number]: string | null }>({});
+  const [commands, setCommands] = useState<{ commandId: number; phrase: string; action: string }[]>([]);
+  const [awaitingOrderId, setAwaitingOrderId] = useState<boolean>(false);
+  const [listeningForCommand, setListeningForCommand] = useState<boolean>(false);
+
+  // Azure Speech SDK related refs and state
+  const speechRecognizerRef = useRef<SpeechSDK.SpeechRecognizer | null>(null);
+  const speechSynthesizerRef = useRef<SpeechSDK.SpeechSynthesizer | null>(null);
+  const [isListening, setIsListening] = useState<boolean>(false);
+  const [transcript, setTranscript] = useState<string>('');
+
+  // Azure Speech service config
+  const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(
+    '8ML90ZtfRoPBf0ipy0lGndqDc2ZbbdRczCaN9kbnjOMQcU3P9r0xJQQJ99BBACYeBjFXJ3w3AAAYACOGZuS7',
+    'eastus'
+  );
+  speechConfig.speechRecognitionLanguage = 'es-MX'; // Spanish (Latin America) language for recognition
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -43,6 +62,226 @@ const OrdersPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Fetch commands from backend
+  const fetchCommands = async () => {
+    try {
+      const response = await fetch('https://smartloansbackend.azurewebsites.net/all_commands');
+      if (!response.ok) {
+        throw new Error('Failed to fetch commands');
+      }
+      const data = await response.json();
+      setCommands(data.commands || []);
+    } catch (error) {
+      console.error('Error fetching commands:', error);
+    }
+  };
+
+  // Initialize speech synthesizer
+  useEffect(() => {
+    if (!speechSynthesizerRef.current) {
+      speechSynthesizerRef.current = new SpeechSDK.SpeechSynthesizer(speechConfig);
+    }
+  }, []);
+
+  // Fetch commands on mount
+  useEffect(() => {
+    fetchCommands();
+  }, []);
+
+  // Start or stop speech recognition and listen for activation word "asistente"
+  const toggleListening = () => {
+    if (isListening) {
+      // Stop listening
+      if (speechRecognizerRef.current) {
+        speechRecognizerRef.current.stopContinuousRecognitionAsync(() => {
+          speechRecognizerRef.current?.close();
+          speechRecognizerRef.current = null;
+          setIsListening(false);
+          setListeningForCommand(false);
+          speakText('Asistente detenido.');
+        });
+      }
+    } else {
+      // Start listening
+      setIsListening(true);
+
+      if (speechRecognizerRef.current) {
+        speechRecognizerRef.current.close();
+        speechRecognizerRef.current = null;
+      }
+
+      speechRecognizerRef.current = new SpeechSDK.SpeechRecognizer(speechConfig);
+
+      speechRecognizerRef.current.recognizing = (s, e) => {
+        // Update partial transcript if needed
+        setTranscript(e.result.text);
+        console.log('Recognizing:', e.result.text);
+      };
+
+      speechRecognizerRef.current.recognized = (s, e) => {
+        if (e.result.reason === SpeechSDK.ResultReason.RecognizedSpeech) {
+          const recognizedText = e.result.text.toLowerCase();
+          setTranscript(recognizedText);
+          console.log('Recognized:', recognizedText);
+          if (!listeningForCommand && recognizedText.includes('asistente')) {
+            // Activation word detected, respond and listen for commands
+            speakText('en que puedo ayudarte');
+            setListeningForCommand(true);
+          } else if (listeningForCommand) {
+            handleVoiceCommand(recognizedText);
+          }
+        }
+      };
+
+      speechRecognizerRef.current.canceled = (s, e) => {
+        setIsListening(false);
+        setListeningForCommand(false);
+        speechRecognizerRef.current?.stopContinuousRecognitionAsync();
+      };
+
+      speechRecognizerRef.current.sessionStopped = (s, e) => {
+        setIsListening(false);
+        setListeningForCommand(false);
+        speechRecognizerRef.current?.stopContinuousRecognitionAsync();
+      };
+
+      speechRecognizerRef.current.startContinuousRecognitionAsync();
+    }
+  };
+
+  // Listen for commands after activation
+  const listenForCommand = () => {
+    // No longer needed to restart recognizer, handled in startListening
+  };
+
+  // Helper to parse order ID from command text
+  const parseOrderIdFromCommand = (command: string): number | null => {
+    const regex = /orden(?: número)? (\d+)/i;
+    const match = command.match(regex);
+    if (match && match[1]) {
+      return parseInt(match[1], 10);
+    }
+    return null;
+  };
+
+  // Handle recognized voice commands dynamically with context awareness
+  const handleVoiceCommand = (command: string) => {
+    if (awaitingOrderId) {
+      // Expecting order ID from user response
+      const orderId = parseOrderIdFromCommand(command);
+      if (orderId !== null) {
+        setAwaitingOrderId(false);
+        fetchOrderProductDetails(orderId);
+        speakText(`Mostrando detalles para la orden ${orderId}.`);
+      } else {
+        speakText('No pude entender el número de orden. Por favor, inténtelo de nuevo.');
+      }
+      return;
+    }
+
+    const matchedCommand = commands.find(cmd => command.includes(cmd.phrase.toLowerCase()));
+    if (matchedCommand) {
+      switch (matchedCommand.action) {
+        case 'readProductDetails':
+          // Check if order details are expanded, else ask for order ID
+          if (expandedOrderIds.length === 1) {
+            readProductDetails();
+          } else if (expandedOrderIds.length > 1) {
+            speakText('Por favor, indique el número de orden para mostrar los detalles.');
+            setAwaitingOrderId(true);
+          } else {
+            speakText('No hay órdenes expandidas. Por favor, indique el número de orden para mostrar los detalles.');
+            setAwaitingOrderId(true);
+          }
+          break;
+        case 'fetchOrders':
+          fetchOrders();
+          break;
+        case 'updateOrderStatus':
+          // For updateOrderStatus, we might need orderId, but here just call fetchOrders as placeholder
+          fetchOrders();
+          break;
+        case 'speakOrdersSummary':
+          speakOrdersSummary();
+          break;
+        case 'stopListening':
+          stopListening();
+          break;
+        default:
+          speakText('Comando no reconocido. Por favor, intente de nuevo.');
+      }
+    } else {
+      speakText('Comando no reconocido. Por favor, intente de nuevo.');
+    }
+  };
+
+  // Use speech synthesizer to speak text
+  const speakText = (text: string) => {
+    console.log('Speaking text:', text);
+    if (speechSynthesizerRef.current) {
+      speechSynthesizerRef.current.speakTextAsync(
+        text,
+        () => {},
+        (error) => {
+          console.error('Speech synthesis error:', error);
+        }
+      );
+    }
+  };
+
+  // Speak a summary of orders
+  const speakOrdersSummary = () => {
+    if (orders.length === 0) {
+      speakText('No hay órdenes para leer.');
+      return;
+    }
+    let summary = `Hay ${orders.length} órdenes. `;
+    orders.forEach(order => {
+      const latestStatus = order.orderStatuses[0];
+      const statusName = latestStatus?.orderStatusName || 'desconocido';
+      summary += `Orden ${order.orderId} en la mesa ${order.tableNumber} está ${statusName}. `;
+    });
+    speakText(summary);
+  };
+
+  // Stop the speech recognizer
+  const stopListening = () => {
+    if (speechRecognizerRef.current) {
+      speechRecognizerRef.current.stopContinuousRecognitionAsync(() => {
+        speechRecognizerRef.current?.close();
+        speechRecognizerRef.current = null;
+        setIsListening(false);
+        speakText('Asistente detenido.');
+      });
+    }
+  };
+
+  // Read out product details of expanded orders
+  const readProductDetails = () => {
+    if (expandedOrderIds.length === 0) {
+      speakText('No hay órdenes expandidas para leer.');
+      return;
+    }
+    expandedOrderIds.forEach(orderId => {
+      const details = orderProductDetails[orderId];
+      if (!details) {
+        speakText(`No hay detalles disponibles para la orden ${orderId}.`);
+        return;
+      }
+      let speechText = `Detalles de la orden ${orderId}: `;
+      details.products.forEach((product: any) => {
+        speechText += `${product.productName}, `;
+        product.po.forEach((option: any) => {
+          speechText += `${option.optionName}: `;
+          option.poc.forEach((choice: any) => {
+            speechText += `${choice.choiceName}, `;
+          });
+        });
+      });
+      speakText(speechText);
+    });
   };
 
   useEffect(() => {
@@ -287,6 +526,20 @@ const OrdersPage: React.FC = () => {
               <IonLabel>Todos</IonLabel>
             </IonSegmentButton>
           </IonSegment>
+          <IonButton onClick={toggleListening} fill="clear" slot="end" aria-label="Toggle Assistant">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill={isListening ? 'red' : 'black'}
+              width="24px"
+              height="24px"
+            >
+              <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z" />
+              <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
+              <line x1="12" y1="19" x2="12" y2="23" stroke={isListening ? 'red' : 'black'} strokeWidth="2" />
+              <line x1="8" y1="23" x2="16" y2="23" stroke={isListening ? 'red' : 'black'} strokeWidth="2" />
+            </svg>
+          </IonButton>
         </IonToolbar>
       </IonHeader>
       <IonContent fullscreen>{content}</IonContent>
