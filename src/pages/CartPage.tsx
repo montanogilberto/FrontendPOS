@@ -37,6 +37,7 @@ const CartPage: React.FC = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
   const [changeAmount, setChangeAmount] = useState(0);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
 
   const total = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
@@ -44,8 +45,8 @@ const CartPage: React.FC = () => {
     const cash = parseFloat(cashPaid);
     if (paymentMethod === 'efectivo' && !isNaN(cash) && cash > total) {
       setChangeAmount(cash - total);
-      setToastMessage(`Cambio a devolver: $${(cash - total).toFixed(2)}`);
-      setShowToast(true);
+      //setToastMessage(`Cambio a devolver: $${(cash - total).toFixed(2)}`);
+      //setShowToast(true);
     } else {
       setShowToast(false);
     }
@@ -65,6 +66,8 @@ const CartPage: React.FC = () => {
     if (paymentMethod === 'efectivo') {
       const cash = parseFloat(cashPaid);
       if (isNaN(cash) || cash < total) {
+        console.log("cash:" + cash)
+        console.log("total:" + total)
         showErrorToast('El efectivo pagado debe ser igual o mayor al total.');
         return;
       }
@@ -97,7 +100,7 @@ const CartPage: React.FC = () => {
       try {
         const response = await submitOrder(orderData);
         if (response.ok) {
-          setShowSuccess(true);
+          setShowSuccessToast(true);
         } else {
           const errorData = await response.json();
           console.error('Order error:', errorData.detail);
@@ -119,7 +122,7 @@ const CartPage: React.FC = () => {
       <IonHeader>
         <IonToolbar>
           <IonButtons slot="start">
-            <IonBackButton defaultHref="/" />
+            <IonBackButton defaultHref="/tabs/home" />
           </IonButtons>
           <IonTitle>Carrito</IonTitle>
         </IonToolbar>
@@ -219,16 +222,27 @@ const CartPage: React.FC = () => {
         buttons={['OK']}
       />
 
-      <IonAlert
-        isOpen={showSuccess}
+      <IonToast
+        isOpen={showSuccessToast}
         onDidDismiss={() => {
           clearCart();
-          setShowSuccess(false);
+          setShowSuccessToast(false);
           history.push('/tabs/home');
         }}
-        header="¡Pedido realizado!"
-        message={`El pedido se realizó con éxito. Método de pago: ${paymentMethod}`}
-        buttons={['OK']}
+        message={`¡Pedido realizado! Método de pago: ${paymentMethod}${
+          paymentMethod === 'efectivo' && !isNaN(parseFloat(cashPaid)) && parseFloat(cashPaid) > total
+            ? ` : Cambio a devolver: $${(parseFloat(cashPaid) - total).toFixed(2)}`
+            : ''
+        }`}
+        color="success"
+        position="bottom"
+        buttons={[
+          {
+            text: 'OK',
+            role: 'cancel',
+            handler: () => setShowSuccessToast(false),
+          },
+        ]}
       />
     </IonPage>
   );

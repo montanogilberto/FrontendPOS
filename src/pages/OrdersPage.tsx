@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useIonViewWillEnter } from '@ionic/react';
 import {
   IonPage,
   IonHeader,
@@ -24,6 +25,9 @@ const OrdersPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedOrderIds, setExpandedOrderIds] = useState<number[]>([]);
+  const [orderProductDetails, setOrderProductDetails] = useState<{ [orderId: number]: any }>({});
+  const [loadingProductDetails, setLoadingProductDetails] = useState<{ [orderId: number]: boolean }>({});
+  const [errorProductDetails, setErrorProductDetails] = useState<{ [orderId: number]: string | null }>({});
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -31,6 +35,11 @@ const OrdersPage: React.FC = () => {
     try {
       const response = await fetch('https://smartloansbackend.azurewebsites.net/list_orders');
       const data = await response.json();
+      if (data.orders) {
+        data.orders.forEach((order: any) => {
+          console.log('OrderId:', order.orderId, 'Status:', order.orderStatuses.map((s: any) => s.orderStatusName));
+        });
+      }
       setOrders(data.orders || []);
     } catch (err) {
       setError('Failed to fetch orders');
@@ -42,6 +51,10 @@ const OrdersPage: React.FC = () => {
   useEffect(() => {
     fetchOrders();
   }, []);
+
+  useIonViewWillEnter(() => {
+    fetchOrders();
+  });
 
   const filterOrdersByStatus = (statusNames: string[]) => {
     return orders.filter(order => {
@@ -102,9 +115,33 @@ const OrdersPage: React.FC = () => {
   };
 
   const toggleOrderDetails = (orderId: number) => {
-    setExpandedOrderIds(prev =>
-      prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId]
-    );
+    setExpandedOrderIds(prev => {
+      const isExpanded = prev.includes(orderId);
+      if (!isExpanded) {
+        fetchOrderProductDetails(orderId);
+        return [...prev, orderId];
+      } else {
+        return prev.filter(id => id !== orderId);
+      }
+    });
+  };
+
+  const fetchOrderProductDetails = async (orderId: number) => {
+    setLoadingProductDetails(prev => ({ ...prev, [orderId]: true }));
+    setErrorProductDetails(prev => ({ ...prev, [orderId]: null }));
+    try {
+      const response = await fetch('https://smartloansbackend.azurewebsites.net/one_products_orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orders: [{ orderId }] }),
+      });
+      const data = await response.json();
+      setOrderProductDetails(prev => ({ ...prev, [orderId]: data.orderedProducts[0] || null }));
+    } catch (error) {
+      setErrorProductDetails(prev => ({ ...prev, [orderId]: 'Failed to fetch product details' }));
+    } finally {
+      setLoadingProductDetails(prev => ({ ...prev, [orderId]: false }));
+    }
   };
 
   const renderOrderItem = (order: Order) => {
@@ -115,6 +152,9 @@ const OrdersPage: React.FC = () => {
 
     const isInPreparation = statusName.toLowerCase() === 'preparing';
     const isExpanded = expandedOrderIds.includes(order.orderId);
+    const productDetails = orderProductDetails[order.orderId];
+    const loadingDetails = loadingProductDetails[order.orderId];
+    const errorDetails = errorProductDetails[order.orderId];
 
     return (
       <React.Fragment key={order.orderId}>
@@ -125,6 +165,26 @@ const OrdersPage: React.FC = () => {
             <p>Status: <IonText style={{ color: statusColor, fontWeight: 'bold', borderRadius: '8px' }}>{statusName}</IonText></p>
             <p>Ultima Actualizacion: {new Date(statusChangedAt).toLocaleTimeString()}</p>
             {order.comments && <p>Comments: {order.comments}</p>}
+            {productDetails && (
+              <p>
+                {productDetails.products?.map((product: any, index: number) => (
+                  <span key={index}>
+                    {product.productName}
+                    {product.po?.map((option: any) => (
+                      <span key={option.productOptionId}>
+                        {option.optionName}:
+                        {option.poc?.map((choice: any) => (
+                          <span key={choice.productOptionChoiceId}>
+                            {choice.choiceName} {choice.choicePrice > 0 ? `($${choice.choicePrice.toFixed(2)})` : ''}
+                          </span>
+                        ))}
+                      </span>
+                    ))}
+                    {index < productDetails.products.length - 1 ? ', ' : ''}
+                  </span>
+                ))}
+              </p>
+            )}
           </IonLabel>
           {selectedTab === 'enPreparacion' && (
             <IonToggle
@@ -136,18 +196,41 @@ const OrdersPage: React.FC = () => {
           )}
 
         </IonItem>
-        {isExpanded && (
-          <IonList>
-            <IonListHeader>Products</IonListHeader>
-            {order.products?.map(product => (
-              <IonItem >
-                <IonLabel>
-                  
-                </IonLabel>
-              </IonItem>
-            ))}
-          </IonList>
-        )}
+          {isExpanded && (
+            <IonList>
+              <IonListHeader>Products</IonListHeader>
+              {loadingDetails && <IonItem><IonLabel>Loading product details...</IonLabel></IonItem>}
+              {errorDetails && <IonItem><IonLabel color="danger">{errorDetails}</IonLabel></IonItem>}
+              {productDetails && (
+                <>
+                  <IonItem>
+                    <IonLabel>
+                      <strong>Product Details for Order #{order.orderId}</strong>
+                    </IonLabel>
+                  </IonItem>
+                  {productDetails.products?.map((product: any, index: number) => (
+                    <IonItem key={index}>
+                      <IonLabel>
+                        <h3>{product.productName}</h3>
+                        {product.po?.map((option: any) => (
+                          <div key={option.productOptionId} style={{ marginLeft: '10px' }}>
+                            <strong>{option.optionName}:</strong>
+                            <ul>
+                              {option.poc?.map((choice: any) => (
+                                <li key={choice.productOptionChoiceId}>
+                                  {choice.choiceName} {choice.choicePrice > 0 ? `($${choice.choicePrice.toFixed(2)})` : ''}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </IonLabel>
+                    </IonItem>
+                  ))}
+                </>
+              )}
+            </IonList>
+          )}
       </React.Fragment>
     );
   };
@@ -161,10 +244,10 @@ const OrdersPage: React.FC = () => {
   } else {
     if (selectedTab === 'enPreparacion') {
       const preparingOrders = filterOrdersByStatus(['preparing']).sort(
-        (a, b) => getStatusChangedAt(b, 'preparing') - getStatusChangedAt(a, 'preparing')
+        (a, b) => getStatusChangedAt(a, 'preparing') - getStatusChangedAt(b, 'preparing')
       );
       const pendingOrders = filterOrdersByStatus(['pending']).sort(
-        (a, b) => getStatusChangedAt(b, 'pending') - getStatusChangedAt(a, 'pending')
+        (a, b) => getStatusChangedAt(a, 'pending') - getStatusChangedAt(b, 'pending')
       );
 
       content = (
