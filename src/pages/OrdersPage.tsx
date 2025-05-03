@@ -90,6 +90,95 @@ const OrdersPage: React.FC = () => {
     fetchCommands();
   }, []);
 
+  // Automatic passive listening for activation word "asistente"
+  useEffect(() => {
+    let passiveRecognizer: SpeechSDK.SpeechRecognizer | null = null;
+    let audioContext: AudioContext | null = null;
+
+    const startPassiveListening = () => {
+      if (passiveRecognizer) {
+        passiveRecognizer.close();
+        passiveRecognizer = null;
+      }
+
+      if (audioContext) {
+        audioContext.close();
+        audioContext = null;
+      }
+
+      audioContext = new AudioContext();
+
+      // Resume AudioContext on user gesture if needed
+      if (audioContext.state === 'suspended') {
+        const resumeAudioContext = () => {
+          audioContext?.resume();
+          window.removeEventListener('click', resumeAudioContext);
+          window.removeEventListener('keydown', resumeAudioContext);
+        };
+        window.addEventListener('click', resumeAudioContext);
+        window.addEventListener('keydown', resumeAudioContext);
+      }
+
+      passiveRecognizer = new SpeechSDK.SpeechRecognizer(speechConfig);
+
+      passiveRecognizer.recognizing = (s, e) => {
+        setTranscript(e.result.text);
+        console.log('Passive Recognizing:', e.result.text);
+      };
+
+      passiveRecognizer.recognized = (s, e) => {
+        if (e.result.reason === SpeechSDK.ResultReason.RecognizedSpeech) {
+          const recognizedText = e.result.text.toLowerCase();
+          setTranscript(recognizedText);
+          console.log('Passive Recognized:', recognizedText);
+          console.log("this my test" + isListening)
+          if (!isListening && recognizedText.includes('asistente')) {
+            // Activation word detected, start active listening
+            speakText('en que puedo ayudarte');
+            setListeningForCommand(true);
+            setIsListening(true);
+            // Stop passive recognizer
+            passiveRecognizer?.stopContinuousRecognitionAsync(() => {
+              passiveRecognizer?.close();
+              passiveRecognizer = null;
+            });
+          }
+        }
+      };
+
+      passiveRecognizer.canceled = (s, e) => {
+        passiveRecognizer?.stopContinuousRecognitionAsync(() => {
+          passiveRecognizer?.close();
+          passiveRecognizer = null;
+        });
+      };
+
+      passiveRecognizer.sessionStopped = (s, e) => {
+        passiveRecognizer?.stopContinuousRecognitionAsync(() => {
+          passiveRecognizer?.close();
+          passiveRecognizer = null;
+        });
+      };
+
+      passiveRecognizer.startContinuousRecognitionAsync();
+    };
+
+    startPassiveListening();
+
+    return () => {
+      if (passiveRecognizer) {
+        passiveRecognizer.stopContinuousRecognitionAsync(() => {
+          passiveRecognizer?.close();
+          passiveRecognizer = null;
+        });
+      }
+      if (audioContext) {
+        audioContext.close();
+        audioContext = null;
+      }
+    };
+  }, []);
+
   // Start or stop speech recognition and listen for activation word "asistente"
   const toggleListening = () => {
     if (isListening) {
@@ -127,7 +216,7 @@ const OrdersPage: React.FC = () => {
           console.log('Recognized:', recognizedText);
           if (!listeningForCommand && recognizedText.includes('asistente')) {
             // Activation word detected, respond and listen for commands
-            speakText('en que puedo ayudarte');
+            speakText('asistente activado');
             setListeningForCommand(true);
           } else if (listeningForCommand) {
             handleVoiceCommand(recognizedText);
@@ -183,6 +272,10 @@ const OrdersPage: React.FC = () => {
 
     const matchedCommand = commands.find(cmd => command.includes(cmd.phrase.toLowerCase()));
     if (matchedCommand) {
+      if (matchedCommand.phrase.toLowerCase() === 'lista de comandos') {
+        readCommandsList();
+        return;
+      }
       switch (matchedCommand.action) {
         case 'readProductDetails':
           // Check if order details are expanded, else ask for order ID
@@ -215,6 +308,24 @@ const OrdersPage: React.FC = () => {
     } else {
       speakText('Comando no reconocido. Por favor, intente de nuevo.');
     }
+  };
+
+  // Function to read aloud the list of available commands
+  const readCommandsList = () => {
+    if (commands.length === 0) {
+      speakText('No hay comandos disponibles para mostrar.');
+      return;
+    }
+    let commandsText = 'Los comandos disponibles son: ';
+    commands.forEach((cmd, index) => {
+      commandsText += `${cmd.phrase}`;
+      if (index < commands.length - 1) {
+        commandsText += ', ';
+      } else {
+        commandsText += '.';
+      }
+    });
+    speakText(commandsText);
   };
 
   // Use speech synthesizer to speak text
