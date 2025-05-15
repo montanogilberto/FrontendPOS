@@ -181,60 +181,7 @@ export const useAzureSpeech = ({
   };
 
   const toggleListening = () => {
-    if (isListening) {
-      if (speechRecognizerRef.current) {
-        speechRecognizerRef.current.stopContinuousRecognitionAsync(() => {
-          speechRecognizerRef.current?.close();
-          speechRecognizerRef.current = null;
-          setIsListening(false);
-          setListeningForCommand(false);
-          speakText('Asistente detenido.');
-          onStopListening();
-        });
-      }
-    } else {
-      setIsListening(true);
-
-      if (speechRecognizerRef.current) {
-        speechRecognizerRef.current.close();
-        speechRecognizerRef.current = null;
-      }
-
-      speechRecognizerRef.current = new SpeechSDK.SpeechRecognizer(speechConfig);
-
-      speechRecognizerRef.current.recognizing = (s, e) => {
-        setTranscript(e.result.text);
-        console.log('Recognizing:', e.result.text);
-      };
-
-      speechRecognizerRef.current.recognized = (s, e) => {
-        if (e.result.reason === SpeechSDK.ResultReason.RecognizedSpeech) {
-          const recognizedText = e.result.text.toLowerCase();
-          setTranscript(recognizedText);
-          console.log('Recognized:', recognizedText);
-          if (!listeningForCommand && recognizedText.includes('asistente')) {
-            speakText('asistente activado');
-            setListeningForCommand(true);
-          } else if (listeningForCommand) {
-            handleVoiceCommand(recognizedText);
-          }
-        }
-      };
-
-      speechRecognizerRef.current.canceled = (s, e) => {
-        setIsListening(false);
-        setListeningForCommand(false);
-        speechRecognizerRef.current?.stopContinuousRecognitionAsync();
-      };
-
-      speechRecognizerRef.current.sessionStopped = (s, e) => {
-        setIsListening(false);
-        setListeningForCommand(false);
-        speechRecognizerRef.current?.stopContinuousRecognitionAsync();
-      };
-
-      speechRecognizerRef.current.startContinuousRecognitionAsync();
-    }
+    toggleListeningHandler();
   };
 
   const parseOrderIdFromCommand = (command: string): number | null => {
@@ -244,6 +191,36 @@ export const useAzureSpeech = ({
       return parseInt(match[1], 10);
     }
     return null;
+  };
+
+  const [confirmationPending, setConfirmationPending] = useState<boolean>(false);
+  const [commandToConfirm, setCommandToConfirm] = useState<Command | null>(null);
+
+  // Simple Levenshtein distance implementation for fuzzy matching
+  const levenshteinDistance = (a: string, b: string): number => {
+    const matrix = Array.from({ length: b.length + 1 }, () => new Array(a.length + 1).fill(0));
+    for (let i = 0; i <= b.length; i++) matrix[i][0] = i;
+    for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        if (b.charAt(i - 1) === a.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1, // substitution
+            matrix[i][j - 1] + 1,     // insertion
+            matrix[i - 1][j] + 1      // deletion
+          );
+        }
+      }
+    }
+    return matrix[b.length][a.length];
+  };
+
+  // Calculate similarity score between 0 and 1
+  const similarity = (a: string, b: string): number => {
+    const distance = levenshteinDistance(a, b);
+    return 1 - distance / Math.max(a.length, b.length);
   };
 
   const handleVoiceCommand = (command: string) => {
@@ -258,42 +235,84 @@ export const useAzureSpeech = ({
       }
       return;
     }
-
-    const matchedCommand = commands.find(cmd => command.includes(cmd.phrase.toLowerCase()));
-    if (matchedCommand) {
-      if (matchedCommand.phrase.toLowerCase() === 'lista de comandos') {
+  
+    if (confirmationPending) {
+      const lowerCommand = command.toLowerCase();
+      if (lowerCommand === 'sí' || lowerCommand === 'si') {
+        if (commandToConfirm) {
+          speakText(`Ejecutando la acción ${commandToConfirm.phrase}.`);
+          executeCommandAction(commandToConfirm);
+        }
+      } else {
+        speakText('Acción cancelada.');
+      }
+      setConfirmationPending(false);
+      setCommandToConfirm(null);
+      return;
+    }
+  
+    let bestMatch: Command | null = null;
+    let bestScore = 0.0;
+    const threshold = 0.4; // lowered similarity threshold for testing
+  
+    const normalizedCommand = command.trim().replace(/[.,!?]$/, '').toLowerCase();
+  
+    console.log('handleVoiceCommand received:', normalizedCommand);
+    console.log('Commands array:', commands);
+  
+    (commands as unknown as Command[]).forEach((cmd) => {
+      const score = similarity(normalizedCommand, cmd.phrase.toLowerCase());
+      console.log(`Comparing with command: ${cmd.phrase}, similarity: ${score}`);
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = cmd;
+      }
+    });
+  
+    if (bestMatch && bestScore >= threshold) {
+      const phrase = (bestMatch as Command).phrase;
+      if (phrase.toLowerCase() === 'lista de comandos') {
         readCommandsList();
         return;
       }
-      switch (matchedCommand.action) {
-        case 'readProductDetails':
-          if (expandedOrderIds.length === 1) {
-            readProductDetails();
-          } else if (expandedOrderIds.length > 1) {
-            speakText('Por favor, indique el número de orden para mostrar los detalles.');
-            setAwaitingOrderId(true);
-          } else {
-            speakText('No hay órdenes expandidas. Por favor, indique el número de orden para mostrar los detalles.');
-            setAwaitingOrderId(true);
-          }
-          break;
-        case 'fetchOrders':
-          onFetchOrders();
-          break;
-        case 'updateOrderStatus':
-          onUpdateOrderStatus();
-          break;
-        case 'speakOrdersSummary':
-          onSpeakOrdersSummary();
-          break;
-        case 'stopListening':
-          onStopListening();
-          break;
-        default:
-          speakText('Comando no reconocido. Por favor, intente de nuevo.');
-      }
+      speakText(`Deseas aplicar esta acción: ${phrase}? Menciona la acción para confirmar.`);
+      setConfirmationPending(true);
+      setCommandToConfirm(bestMatch);
     } else {
+      console.log('No matching command found.');
       speakText('Comando no reconocido. Por favor, intente de nuevo.');
+    }
+  };
+  
+
+  const executeCommandAction = (cmd: Command) => {
+    switch (cmd.action) {
+      case 'readProductDetails':
+        if (expandedOrderIds.length === 1) {
+          readProductDetails();
+        } else if (expandedOrderIds.length > 1) {
+          speakText('Por favor, indique el número de orden para mostrar los detalles.');
+          setAwaitingOrderId(true);
+        } else {
+          speakText('No hay órdenes expandidas. Por favor, indique el número de orden para mostrar los detalles.');
+          setAwaitingOrderId(true);
+        }
+        break;
+      case 'fetchOrders':
+        onFetchOrders();
+        break;
+      case 'updateOrderStatus':
+        onUpdateOrderStatus();
+        break;
+      case 'speakOrdersSummary':
+        onSpeakOrdersSummary();
+        break;
+      case 'stopListening':
+        onStopListening();
+        break;
+      default:
+        speakText('Comando no reconocido. Por favor, intente de nuevo.');
+        
     }
   };
 
